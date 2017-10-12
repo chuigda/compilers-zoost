@@ -1,10 +1,12 @@
-﻿#include "lex.h"
+﻿#include "error.h"
+#include "lex.h"
 #include "ast_tree.h"
 #include "dump_ast.h"
 #include "ast2ir.h"
 #include "ir_interpret.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #define RELEASE
 
@@ -36,9 +38,10 @@ int main(int _argc, char** _argv)
     fclose(fp);
 
     c_list *tokens = g_scan_and_split(str_code);
+    if (error_count != 0) abort();
     c_ast_translation_unit *ast = g_parse_tokens(tokens);
+    if (error_count != 0) abort();
     c_list *ir_instances = g_translate_ast(ast);
-
     g_execute_ir_instance(ir_instances);
 
     g_delete_ast(ast);

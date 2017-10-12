@@ -6,11 +6,12 @@ extern "C" {
 #endif
 
 extern void error(int _line, const char* _str);
+extern int error_count;
 
 #ifdef __cplusplus
 }
 #endif
 
-#define THEFUCK "I don't ever know what's wrong, just go and fuck yourself."
+#define THEFUCK "I DON'T EVER KNOW WHAT'S WRONG, JUST GO AND FUCK YOURSELF."
 
 #endif // ERROR_H

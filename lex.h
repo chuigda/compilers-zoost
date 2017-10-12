@@ -10,6 +10,8 @@ extern "C" {
 
 enum c_token_type
 {
+    token_eoi       = -1,
+
     token_rwd_input = 0,
     token_rwd_print = 1,
     token_rwd_goto  = 2,

@@ -1,6 +1,7 @@
 ﻿#include "ast_tree.h"
 #include "lex.h"
 #include "error.h"
+#include "tokenset.h"
 
 #include <stdlib.h>
 #include <assert.h>
@@ -35,7 +36,11 @@ static c_block* gi_parse_block(
 static c_stmt* gi_parse_stmt(
         c_list* _tokens, int *_index, c_env* _env);
 
-static void g_expect(c_list* _tokens, int *_index, int _expected);
+static void g_expect(
+        c_list* _tokens, int *_index, int _expected);
+
+static void gi_skip_to(c_list* _tokens, int *_index, c_token_set *_set);
+
 
 c_ast_translation_unit *g_parse_tokens(c_list *_tokens)
 {
@@ -46,7 +51,9 @@ c_ast_translation_unit *g_parse_tokens(c_list *_tokens)
                                     &default_deallocator);
     ret->global_env = g_create_env(NULL);
     int current_index = 0;
-    while (current_index < g_list_size(_tokens))
+    while (
+        current_index < g_list_size(_tokens) &&
+        ((c_token*)g_list_get(_tokens, current_index))->token_type!=token_eoi)
     {
         g_list_push_back(ret->statements,
                          (void*)gi_parse_stmt(
@@ -115,8 +122,12 @@ static c_stmt* gi_parse_stmt(c_list *_tokens, int *_index, c_env *_env)
         ret->variant.goto_stmt = gi_parse_goto_stmt(_tokens, _index, _env);
         break;
 
+    case token_eoi:
+        break;
+
     default:
-        error(current_token->line, THEFUCK);
+        error(current_token->line, "INVALID SYNTAX AS COMMENCE OF A STMT.");
+        gi_skip_to(_tokens, _index, g_setof_stmt_begin());
     }
 
     return ret;
@@ -135,7 +146,11 @@ static c_var_stmt *gi_parse_var_stmt(c_list *_tokens, int *_index, c_env *_env)
     {
         if (current_token->token_type != token_string)
         {
-            error(current_token->line, THEFUCK);
+            error(current_token->line, "EXPECTED IDENTIFIER.");
+            gi_skip_to(_tokens, _index, g_setof_stmt_begin());
+            g_delete_list(ret->id_list);
+            free(ret);
+            return NULL;
         }
 
         int *new_id = (int*)malloc(sizeof(int));
@@ -155,8 +170,8 @@ static c_var_stmt *gi_parse_var_stmt(c_list *_tokens, int *_index, c_env *_env)
         g_expect(_tokens, _index, token_sym_comma);
         current_token = (c_token*)g_list_get(_tokens, *_index);
     }
-    error(current_token->line, THEFUCK);
 
+    error(current_token->line, THEFUCK);
     return NULL;
 }
 
@@ -168,9 +183,13 @@ static c_let_stmt *gi_parse_let_stmt(c_list *_tokens, int *_index, c_env *_env)
     if (current_token->token_type == token_string)
     {
         ret->id = g_env_query(_env, current_token->value.string);
-        if (ret->id == -1) error(current_token->line, THEFUCK);
+        if (ret->id == -1) error(current_token->line, "UNKNOWN IDENTIFIER");
     }
-    else error(current_token->line, THEFUCK);
+    else
+    {
+        error(current_token->line, "EXPECTED IDENTIFIER");
+        gi_skip_to(_tokens, _index, g_setof_stmt_begin());
+    }
     (*_index)++;
     g_expect(_tokens, _index, token_sym_lbracket);
     ret->expr = g_parse_expr(_tokens, _index, _env);
@@ -204,13 +223,23 @@ static c_input_stmt* gi_parse_input_stmt(
     {
         if (current_token->token_type != token_string)
         {
-            error(current_token->line, THEFUCK);
+            error(current_token->line, "EXPECTED IDENTIFIER");
+            (*_index)++;
+            current_token = (c_token*)g_list_get(_tokens, *_index);
+            continue;
         }
 
         int *new_id = (int*)malloc(sizeof(int));
         *new_id = g_env_query(_env, current_token->value.string);
-        if (*new_id == -1) error(current_token->line, THEFUCK);
-        else g_list_push_back(ret->id_list, (void*)new_id);
+        if (*new_id != -1)
+        {
+            g_list_push_back(ret->id_list, (void*)new_id);
+        }
+        else
+        {
+            error(current_token->line, "UNKNOWN IDENTIFIER");
+            free(new_id);
+        }
         (*_index)++;
         new_id = NULL;
 
@@ -226,6 +255,8 @@ static c_input_stmt* gi_parse_input_stmt(
         current_token = (c_token*)g_list_get(_tokens, *_index);
     }
 
+    g_delete_list(ret->id_list);
+    free(ret);
     return NULL;
 }
 
@@ -242,12 +273,14 @@ static c_flag_stmt* gi_parse_flag_stmt(
 
     c_flag_stmt* ret = (c_flag_stmt*)malloc(sizeof(c_flag_stmt));
     c_token* current_token = g_list_get(_tokens, *_index);
-    if (current_token->token_type != token_number)
+    if (current_token->token_type == token_number)
     {
-        error(current_token->line, THEFUCK);
+        ret->id = current_token->value.number;
     }
-    ret->id = current_token->value.number;
-
+    else
+    {
+        error(current_token->line, "EXPECTED A NUMBER AS LABEL");
+    }
     (*_index)++;
     g_expect(_tokens, _index, token_sym_semicolon);
     return ret;
@@ -269,6 +302,7 @@ static c_block* gi_parse_block(c_list *_tokens, int *_index, c_env *_env)
 
     c_token *current_token = g_list_get(_tokens, *_index);
     while (current_token->token_type != ']'
+           && current_token->token_type != token_eoi
            && *_index < g_list_size(_tokens))
     {
         g_list_push_back(ret->stmt_list,
@@ -278,7 +312,8 @@ static c_block* gi_parse_block(c_list *_tokens, int *_index, c_env *_env)
 
     if (g_list_size(_tokens) == *_index)
     {
-        error(((c_token*)g_list_get(_tokens, (*_index)-1))->line, THEFUCK);
+        error(((c_token*)g_list_get(_tokens, (*_index)-1))->line,
+              "UNEXPECTED EOF");
         return 0;
     }
     g_expect(_tokens, _index, token_sym_rbracket);
@@ -290,7 +325,8 @@ static void g_expect(c_list *_tokens, int *_index, int _expected)
 {
     if (((c_token*)g_list_get(_tokens, *_index))->token_type != _expected)
     {
-        error(((c_token*)g_list_get(_tokens, *_index))->line, THEFUCK);
+        error(((c_token*)g_list_get(_tokens, *_index))->line,
+              "UNEXPECTED TOKEN");
     }
     (*_index)++;
 }
@@ -362,5 +398,12 @@ static void g_delete_stmt(c_stmt *_stmt)
 {
     c_stmt_deleter(_stmt);
     free(_stmt);
+}
+
+static void gi_skip_to(c_list *_tokens, int *_index, c_token_set* _set)
+{
+    while (
+       !g_in_set(_set,((c_token*)g_list_get(_tokens, *_index))->token_type))
+        (*_index)++;
 }
 

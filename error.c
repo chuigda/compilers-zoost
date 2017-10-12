@@ -7,5 +7,8 @@ void error(int _line, const char *_str)
 {
     fprintf(stderr, "At line %d : %s\n", _line, _str);
     fflush(stdout);
-    abort();
+
+    ++error_count;
 }
+
+int error_count = 0;

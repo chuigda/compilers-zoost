@@ -6,6 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+static c_token* create_eoi_token(int _line)
+{
+    c_token *ret = (c_token*)malloc(sizeof(c_token));
+    ret->token_type = token_eoi;
+    ret->line = _line;
+    return ret;
+}
+
 static c_token* create_string_token(c_string** _str, int _line)
 {
     c_token *ret = (c_token*)malloc(sizeof(c_token));
@@ -216,14 +224,14 @@ extern c_list* g_scan_and_split(const c_string *_src_code)
 
         default:
             {
-                error(current_line,
-                      "I don't ever know what's wrong,"
-                      " just go and fuck yourself.");
+                error(current_line, THEFUCK);
+                abort();
                 current_pos++;
             }
         }
     }
 
+    g_list_push_back(ret, create_eoi_token(current_line));
     return ret;
 }
 

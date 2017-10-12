@@ -48,14 +48,21 @@ extern c_expr* g_parse_expr(c_list *_tokens, int *_index, c_env *_env)
             factor->factor_type = ceft_id;
             factor->variant.id =
                     g_env_query(_env, current_token->value.string);
-            if (factor->variant.id == -1) error(current_token->line, THEFUCK);
+            if (factor->variant.id == -1)
+            {
+                error(current_token->line, "UNKNOWN IDENTIFIER");
+                free(ret);
+                return NULL;
+            }
             ret->variant.single_factor = factor;
             (*_index)++;
             break;
         }
 
     default:
-        error(current_token->line, THEFUCK);
+        error(current_token->line, "BAD EXPRESSION");
+        free(ret);
+        return NULL;
     }
     return ret;
 }

@@ -16,7 +16,8 @@ SOURCES += main.c \
     ast2ir.c \
     expr2ir.c \
     irdump.c \
-    ir_interpret.c
+    ir_interpret.c \
+    tokenset.c
 
 HEADERS += \
     lex.h \
@@ -30,7 +31,8 @@ HEADERS += \
     ast_expr.h \
     ast2ir.h \
     ir_interpret.h \
-    ir.h
+    ir.h \
+    tokenset.h
 
 STATECHARTS +=
 
